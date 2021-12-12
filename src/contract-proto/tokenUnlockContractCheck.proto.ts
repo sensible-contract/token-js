@@ -1,0 +1,54 @@
+import * as bsv from "@sensible-contract/bsv";
+import { BN } from "@sensible-contract/bsv";
+import { Utils } from "@sensible-contract/sdk-core";
+const NFT_ID_LEN = 36;
+const NFT_CODE_HASH_LEN = 20;
+const NFT_ID_OFFSET = 0 + NFT_ID_LEN;
+const NFT_CODE_HASH_OFFSET = NFT_ID_OFFSET + NFT_CODE_HASH_LEN;
+// opreturn + inputTokenIndexArray + nSenders(4 bytes) + receiverTokenAmountArray + receiverArray + nReceivers(4 bytes) + tokenCodeHash + tokenID
+
+export type FormatedDataPart = {
+  inputTokenIndexArray?: number[];
+  nSenders?: number;
+  receiverTokenAmountArray?: BN[];
+  receiverArray?: bsv.Address[];
+  nReceivers?: number;
+  tokenCodeHash?: string;
+  tokenID?: string;
+};
+
+export function newDataPart(dataPart: FormatedDataPart): Buffer {
+  let inputTokenIndexArrayBuf = Buffer.alloc(0);
+  dataPart.inputTokenIndexArray.forEach((tokenIndex) => {
+    inputTokenIndexArrayBuf = Buffer.concat([
+      inputTokenIndexArrayBuf,
+      Utils.getUInt32Buf(tokenIndex),
+    ]);
+  });
+
+  let nSendersBuf = Utils.getUInt32Buf(dataPart.nSenders);
+
+  let receiverTokenAmountArrayBuf = Buffer.alloc(0);
+  dataPart.receiverTokenAmountArray.forEach((tokenAmount) => {
+    receiverTokenAmountArrayBuf = Buffer.concat([
+      receiverTokenAmountArrayBuf,
+      tokenAmount.toBuffer({ endian: "little", size: 8 }),
+    ]);
+  });
+  let recervierArrayBuf = Buffer.alloc(0);
+  dataPart.receiverArray.map((address) => {
+    recervierArrayBuf = Buffer.concat([recervierArrayBuf, address.hashBuffer]);
+  });
+  let nReceiversBuf = Utils.getUInt32Buf(dataPart.nReceivers);
+  let tokenCodeHashBuf = Buffer.from(dataPart.tokenCodeHash, "hex");
+  let tokenIDBuf = Buffer.from(dataPart.tokenID, "hex");
+  return Buffer.concat([
+    inputTokenIndexArrayBuf,
+    nSendersBuf,
+    receiverTokenAmountArrayBuf,
+    recervierArrayBuf,
+    nReceiversBuf,
+    tokenCodeHashBuf,
+    tokenIDBuf,
+  ]);
+}
