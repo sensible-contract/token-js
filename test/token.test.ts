@@ -236,7 +236,6 @@ describe("Token Test", () => {
         },
       ];
       let tokenInputs = await getTokenInputs(provider, {
-        tokenSigner,
         tokenUtxos,
         codehash,
         genesis,

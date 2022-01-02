@@ -9,6 +9,7 @@ import {
   PLACE_HOLDER_SIG,
   Prevouts,
   SatotxSigner,
+  selectSigners,
   SignerConfig,
   SizeTransaction,
   Utils,
@@ -153,7 +154,10 @@ export type TokenInput = {
   preTokenAmount?: BN;
   preLockingScript?: bsv.Script;
 
+  codehash?: string;
+  genesis?: string;
   tokenID?: string;
+  rabinPubKeyHashArrayHash?: string;
 };
 
 export type TokenGenesisInput = {
@@ -182,6 +186,7 @@ export type TokenGenesisInput = {
   tokenName?: string;
   tokenSymbol?: string;
   decimalNum?: number;
+  rabinPubKeyHashArrayHash?: string;
 };
 
 export class TokenSigner {
@@ -565,12 +570,10 @@ createTokenIssueTx.estimateFee = function ({
 export async function getTokenInputs(
   provider: Provider,
   {
-    tokenSigner,
     tokenUtxos,
     codehash,
     genesis,
   }: {
-    tokenSigner: TokenSigner;
     tokenUtxos: ParamFtUtxo[];
     codehash: string;
     genesis: string;
@@ -621,14 +624,6 @@ export async function getTokenInputs(
     if (!curDataPartObj) {
       let tokenScript = tx.outputs[ftUtxo.outputIndex].script;
       curDataPartObj = ftProto.parseDataPart(tokenScript.toBuffer());
-      if (
-        curDataPartObj.rabinPubKeyHashArrayHash !=
-        toHex(tokenSigner.rabinPubKeyHashArrayHash)
-      ) {
-        throw new Error(
-          "The currently used signers does not correspond to the token."
-        );
-      }
     }
     //Find a valid preTx
     let input = tx.inputs.find((input) => {
@@ -666,6 +661,11 @@ export async function getTokenInputs(
     ftUtxo.satoshis = tx.outputs[ftUtxo.outputIndex].satoshis;
     ftUtxo.lockingScript = tx.outputs[ftUtxo.outputIndex].script;
     ftUtxo.tokenID = toHex(ftProto.getTokenID(ftUtxo.lockingScript.toBuffer()));
+    ftUtxo.rabinPubKeyHashArrayHash = ftProto.getRabinPubKeyHashArrayHash(
+      ftUtxo.lockingScript.toBuffer()
+    );
+    ftUtxo.codehash = codehash;
+    ftUtxo.genesis = genesis;
 
     if (!cachedHexs[preTxId]) {
       cachedHexs[preTxId] = {
@@ -804,6 +804,9 @@ export async function getTokenGenesisInput(
     txid: genesisTxId,
     index: genesisOutputIndex,
   };
+  genesisInput.rabinPubKeyHashArrayHash = ftProto.getRabinPubKeyHashArrayHash(
+    genesisInput.lockingScript.toBuffer()
+  );
 
   let genesisContract = TokenGenesisFactory.createContract(
     new bsv.PublicKey(genesisPublicKey)
@@ -1316,3 +1319,13 @@ createTokenTransferTx.estimateFee = function ({
   stx.addP2PKHOutput();
   return stx.getFee();
 };
+
+export async function selectTokenSigners(
+  signerConfigs: SignerConfig[] = defaultSignerConfigs
+) {
+  return await selectSigners(
+    signerConfigs,
+    ftProto.SIGNER_NUM,
+    ftProto.SIGNER_VERIFY_NUM
+  );
+}
